@@ -1,0 +1,52 @@
+node
+{
+def mavenHome = tool name: "maven3.6.3"
+    
+    stage("CodeClone")
+    {
+       git credentialsId: 'gitCredentials', url: 'https://github.com/
+    }
+    stage("CreatePackage")
+    {
+        sh "${mavenHome}/bin/mvn clean package"
+    }
+    
+    stage('CodeQualityReports')
+    {
+         //sh "${mavenHome}/bin/mvn sonar:sonar"
+    }
+    stage('UploadBuildArtifacts')
+     {
+        sh "${mavenHome}/bin/mvn deploy"
+    }
+    stage('Deploy2Tomcat')
+    {
+       deploy adapters: [tomcat9(credentialsId: 'TomcatCredentials', path: '', url: 'http://34.239.176.96:8080/')], contextPath: null, war: '**/maven-web-app.war'
+    }
+    stage('BuildDockerImage')
+     {
+        //sh "docker stop myapp"
+        //sh "docker rm -f myapp"
+        sh "docker rmi -f cptech/maven-web-app"
+        sh "docker build -t cptech/maven-web-app ."
+    }
+    stage('Push2DockerHub')
+     {
+    withCredentials([string(credentialsId: 'DockerHubPwd', variable: 'DockerHubPwd')]) {
+        sh "docker login -u mylandmarktech -p $DockerHubPwd"
+}
+   } 
+        sh "docker push cptech/maven-web-app"
+    }
+    stage('DeployAppInDockerContainer')
+     {
+        sh "docker run -d -p 8888:8080 --name myapp cptech/maven-web-app"
+    }
+    stage('Email notification')
+    {
+emailext body: '''
+Build Status
+CP Technology
++ 1 437 215 2222\'\'\', recipientProviders: [developers()], subject: \'Build status\', to: \'ckingtech@gmail.com\'''', recipientProviders: [developers()], subject: 'Build', to: 'legah2002@gmail.com'   
+    }
+}
